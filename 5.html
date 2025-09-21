@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="apple-touch-icon" href="ios.png" />
+<meta name="apple-mobile-web-app-title" content="チケプラ電子チケット" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;600&display=swap" rel="stylesheet"/>
+<style>
+* { box-sizing: border-box; }
+body {   padding-top: env(safe-area-inset-top); /* ステータスバー分の余白 */ margin:0; background:#fff; overflow:hidden; font-family:sans-serif; }
+
+.page {
+  width:100vw;
+  height:100vh;
+  position:absolute;
+  top:0; left:0;
+  transition: transform 0.2s ease;
+}
+
+/* Page2初期状態 */
+#page2 { transform:translateX(100%); z-index:2; }
+#page2.active { transform:translateX(0); }
+#page2.slide-out { transform:translateX(100%); }
+
+/* ヘッダー/フッター (P1のみ) */
+#headerImg, #footerImg {
+  position:fixed;
+  left:50%; transform:translateX(-50%);
+  width:auto; max-width:100%; height:auto; z-index:1000;
+}
+#headerImg { top:0; }
+#footerImg { bottom:0; }
+
+/* P1スワイプエリア */
+#scrollArea {
+  position:absolute;
+  top:0; /* 後でJSでheader高さ分ずらす */
+  bottom:0;
+  left:0;
+  width:100%;
+  overflow:hidden;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  touch-action:none;
+  background:#fff;
+}
+
+#scrollArea img { width:100%; height:auto; display:block; max-width:800px; }
+
+/* P1次へボタン */
+#nextButton {
+  position:absolute; top:48%; left:50%; transform:translateX(-50%);
+  padding:20px 100%; font-size:28px; border:none; border-radius:12px;
+  background:transparent; color:transparent; cursor:pointer; z-index:10;
+}
+
+/* Page2 背景画像 */
+#page2Bg { position:absolute; top:0; left:0; width:100vw; height:auto; z-index:0; }
+
+/* P2テキスト・重ね画像 */
+.stamp, .face { position:absolute; width:auto; height:auto; }
+.face { border-radius:8px; }
+.name, .seat { position:absolute; width:auto; height:auto; background:transparent; color:#1e5c83; font-size: 20px;font-weight: 700;}
+
+/* P2戻るボタン */
+#page2 button {
+  position:absolute; top:1%; left:5%; transform:translateX(-50%);
+  padding:3%; font-size:3vw; border:none; border-radius:1vw; background:transparent; color:transparent; cursor:pointer;
+}
+
+/* レスポンシブ */
+@media(max-width:600px){
+  #nextButton { padding:4vw 80vw; font-size:6vw; border-radius:2vw; }
+}
+</style>
+</head>
+<body>
+
+<!-- P1 -->
+<div id="page1" class="page">
+  <img id="headerImg" src="head.png" alt="ヘッダー">
+  <div id="scrollArea">
+    <img src="pre.png" alt="チケット画像">
+    <button id="nextButton" onclick="goToPage(2)">次へ</button>
+  </div>
+  <img id="footerImg" src="foot.png" alt="フッター">
+</div>
+
+<!-- P2 -->
+<div id="page2" class="page">
+  <img src="tike.png" id="page2Bg">
+  <img src="stamp.png" id="stamp" class="stamp">
+  <img src="5.png" id="num1" class="face">
+  <div id="nameBox" class="name">ニシナカ ユウキ 様</div>
+  <div id="seatBox" class="seat">アリーナ A3 ブロック 49番</div>
+  <button onclick="goToPage(1)">戻る</button>
+</div>
+
+<script>
+// ページ遷移
+function goToPage(num){
+  const page2 = document.getElementById("page2");
+  const header = document.getElementById("headerImg");
+  const footer = document.getElementById("footerImg");
+  if(num===2){
+    page2.classList.add("active");
+    header.style.display="none";
+    footer.style.display="none";
+  } else {
+    page2.classList.add("slide-out");
+    setTimeout(()=>{
+      page2.classList.remove("active","slide-out");
+      header.style.display="block";
+      footer.style.display="block";
+    },200);
+  }
+}
+
+// P1スワイプ
+const scrollArea = document.getElementById('scrollArea');
+let startY=0, isDragging=false;
+scrollArea.addEventListener('touchstart', e=>{ startY=e.touches[0].clientY; isDragging=true; });
+scrollArea.addEventListener('touchmove', e=>{
+  if(!isDragging) return;
+  const moveY = e.touches[0].clientY - startY;
+  scrollArea.style.transform = `translateY(${moveY}px)`;
+});
+scrollArea.addEventListener('touchend', ()=>{
+  isDragging=false;
+  scrollArea.style.transition='transform 0.3s ease';
+  scrollArea.style.transform='translateY(0)';
+  setTimeout(()=>{ scrollArea.style.transition=''; },300);
+});
+
+// ヘッダー・フッター高さ調整
+function adjustScrollArea(){
+  const header=document.getElementById('headerImg');
+  const footer=document.getElementById('footerImg');
+  const h = header.offsetHeight||0;
+  const f = footer.offsetHeight||0;
+  scrollArea.style.top = h+'px';       // ← ヘッダー下にずらす
+  scrollArea.style.bottom = f+'px';
+}
+window.addEventListener('load', adjustScrollArea);
+window.addEventListener('resize', adjustScrollArea);
+
+
+// P2自動配置（横幅基準）
+function adjustP2(){
+  const bg = document.getElementById('page2Bg');
+  const bgWidth = page2.offsetWidth;
+
+// 元画像サイズ 1200x800 を幅基準に
+const base = {
+  stamp:{top:390/1200, left:735/1200, width:390/1200},  
+  num1:{top:1240/1200, left:805/1200, width:320/1200},
+  nameBox:{top:1300/1200, left:70/1200, width:800/1200}, 
+  seatBox:{top:1480/1200, left:70/1200, width:700/1200}
+};
+
+// 適用
+stamp.style.top  = (base.stamp.top*bgWidth)+'px';
+stamp.style.left = (base.stamp.left*bgWidth)+'px';
+stamp.style.width= (base.stamp.width*bgWidth)+'px';
+
+num1.style.top   = (base.num1.top*bgWidth)+'px';
+num1.style.left  = (base.num1.left*bgWidth)+'px';
+num1.style.width = (base.num1.width*bgWidth)+'px';
+
+nameBox.style.top   = (base.nameBox.top*bgWidth)+'px';
+nameBox.style.left  = (base.nameBox.left*bgWidth)+'px';
+nameBox.style.width = (base.nameBox.width*bgWidth)+'px';
+
+seatBox.style.top   = (base.seatBox.top*bgWidth)+'px';
+seatBox.style.left  = (base.seatBox.left*bgWidth)+'px';
+seatBox.style.width = (base.seatBox.width*bgWidth)+'px';
+
+
+  document.getElementById('stamp').style.left = (base.stamp.left*bgWidth)+'px';
+  document.getElementById('stamp').style.width = (base.stamp.width*bgWidth)+'px';
+
+  document.getElementById('num1').style.left = (base.num1.left*bgWidth)+'px';
+  document.getElementById('num1').style.width = (base.num1.width*bgWidth)+'px';
+
+  document.getElementById('nameBox').style.left = (base.nameBox.left*bgWidth)+'px';
+  document.getElementById('nameBox').style.width = (base.nameBox.width*bgWidth)+'px';
+
+  document.getElementById('seatBox').style.left = (base.seatBox.left*bgWidth)+'px';
+  document.getElementById('seatBox').style.width = (base.seatBox.width*bgWidth)+'px';
+}
+window.addEventListener('load', adjustP2);
+window.addEventListener('resize', adjustP2);
+</script>
+
+</body>
+</html>
